@@ -1,34 +1,41 @@
 package com.farhan.urlshortener.service;
 
 import com.farhan.urlshortener.encoder.Base62Encoder;
+import com.farhan.urlshortener.entity.Url;
+import com.farhan.urlshortener.repository.UrlRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 
 @Service
 public class UrlShortenerService {
 
-    private final IdGenerator idGenerator;
+    private final UrlRepository urlRepository;
     private final Base62Encoder encoder;
-    private final ConcurrentHashMap<String, String> urlsByCode = new ConcurrentHashMap<>();
 
-    public UrlShortenerService(IdGenerator idGenerator, Base62Encoder encoder) {
-        this.idGenerator = idGenerator;
+    public UrlShortenerService(UrlRepository urlRepository, Base62Encoder encoder) {
+        this.urlRepository = urlRepository;
         this.encoder = encoder;
     }
 
+    @Transactional
     public String shorten(String originalUrl) {
-        long id = idGenerator.nextId();
-        String code = encoder.encode(id);
-        urlsByCode.put(code, originalUrl);
+        // MySQL needs a row before it can generate the identity ID. The marker is
+        // unique, fits the column, and cannot collide with Base62 output.
+        String temporaryCode = "!" + UUID.randomUUID().toString().replace("-", "").substring(0, 15);
+        Url url = urlRepository.saveAndFlush(new Url(temporaryCode, originalUrl));
+
+        String code = encoder.encode(url.getId());
+        url.setShortCode(code);
+        urlRepository.saveAndFlush(url);
         return code;
     }
 
+    @Transactional(readOnly = true)
     public String resolve(String code) {
-        String originalUrl = urlsByCode.get(code);
-        if (originalUrl == null) {
-            throw new ShortUrlNotFoundException(code);
-        }
-        return originalUrl;
+        return urlRepository.findByShortCode(code)
+                .map(Url::getLongUrl)
+                .orElseThrow(() -> new ShortUrlNotFoundException(code));
     }
 }
