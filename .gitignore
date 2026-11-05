@@ -1,0 +1,28 @@
+# Maven build output
+/target/
+
+# Java compiler and runtime artifacts
+*.class
+hs_err_pid*.log
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+.factorypath
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
