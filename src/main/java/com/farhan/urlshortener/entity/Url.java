@@ -13,7 +13,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "urls", indexes = {
-        @Index(name = "idx_urls_short_code", columnList = "short_code", unique = true)
+        @Index(name = "idx_urls_short_code", columnList = "short_code", unique = true),
+        @Index(name = "idx_urls_expires_at", columnList = "expires_at")
 })
 public class Url {
 
@@ -27,8 +28,17 @@ public class Url {
     @Column(name = "long_url", nullable = false, length = 2048)
     private String longUrl;
 
+    @Column(name = "click_count", nullable = false)
+    private long clickCount = 0L;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    // Nullable during schema evolution so Hibernate can add this column to a
+    // populated Phase 2 table without requiring a destructive table rebuild.
+    // New rows receive an expiry in the service and in the @PrePersist fallback.
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
 
     protected Url() {
         // Required by JPA.
@@ -43,6 +53,9 @@ public class Url {
     void setCreatedAtIfMissing() {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
+        }
+        if (expiresAt == null) {
+            expiresAt = createdAt.plusDays(30);
         }
     }
 
@@ -66,11 +79,27 @@ public class Url {
         this.longUrl = longUrl;
     }
 
+    public long getClickCount() {
+        return clickCount;
+    }
+
+    public void setClickCount(long clickCount) {
+        this.clickCount = clickCount;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getExpiresAt() {
+        return expiresAt;
+    }
+
+    public void setExpiresAt(LocalDateTime expiresAt) {
+        this.expiresAt = expiresAt;
     }
 }

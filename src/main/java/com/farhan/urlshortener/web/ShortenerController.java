@@ -3,6 +3,7 @@ package com.farhan.urlshortener.web;
 import com.farhan.urlshortener.service.UrlShortenerService;
 import com.farhan.urlshortener.web.dto.ShortenRequest;
 import com.farhan.urlshortener.web.dto.ShortenResponse;
+import com.farhan.urlshortener.web.dto.UrlStatisticsResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -38,5 +39,12 @@ public class ShortenerController {
     public ResponseEntity<Void> redirect(@PathVariable String code) {
         String destination = urlShortenerService.resolve(code);
         return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(destination)).build();
+    }
+
+    @GetMapping("/stats/{code}")
+    public UrlStatisticsResponse statistics(@PathVariable String code) {
+        var statistics = urlShortenerService.getStatistics(code);
+        return new UrlStatisticsResponse(statistics.shortCode(), statistics.longUrl(),
+                statistics.clickCount(), statistics.createdAt(), statistics.expiresAt());
     }
 }

@@ -16,6 +16,8 @@ class UrlTest {
         url.setCreatedAtIfMissing();
 
         assertNotNull(url.getCreatedAt());
+        assertEquals(url.getCreatedAt().plusDays(30), url.getExpiresAt());
+        assertEquals(0L, url.getClickCount());
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.farhan.urlshortener.web;
 
 import com.farhan.urlshortener.service.ShortUrlNotFoundException;
+import com.farhan.urlshortener.service.ShortUrlExpiredException;
 import com.farhan.urlshortener.web.dto.ApiError;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ShortUrlNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(ShortUrlNotFoundException exception) {
         return error(HttpStatus.NOT_FOUND, exception.getMessage());
+    }
+
+    @ExceptionHandler(ShortUrlExpiredException.class)
+    public ResponseEntity<ApiError> handleExpired(ShortUrlExpiredException exception) {
+        return error(HttpStatus.GONE, exception.getMessage());
     }
 
     private ResponseEntity<ApiError> error(HttpStatus status, String message) {
