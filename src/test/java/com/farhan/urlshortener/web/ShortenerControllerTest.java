@@ -1,6 +1,8 @@
 package com.farhan.urlshortener.web;
 
 import com.farhan.urlshortener.service.ShortUrlNotFoundException;
+import com.farhan.urlshortener.service.ShortenRateLimiterService;
+import com.farhan.urlshortener.service.UrlStatistics;
 import com.farhan.urlshortener.service.UrlShortenerService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,8 +11,11 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDateTime;
+
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -27,8 +32,12 @@ class ShortenerControllerTest {
     @MockBean
     private UrlShortenerService urlShortenerService;
 
+    @MockBean
+    private ShortenRateLimiterService shortenRateLimiterService;
+
     @Test
     void postShortenReturnsCodeAndShortUrl() throws Exception {
+        when(shortenRateLimiterService.isAllowed("127.0.0.1")).thenReturn(true);
         when(urlShortenerService.shorten("https://example.com/path")).thenReturn("abc");
 
         mockMvc.perform(post("/shorten")
@@ -39,6 +48,22 @@ class ShortenerControllerTest {
                 .andExpect(jsonPath("$.shortUrl").value("http://localhost/abc"));
 
         verify(urlShortenerService).shorten("https://example.com/path");
+        verify(shortenRateLimiterService).isAllowed("127.0.0.1");
+    }
+
+    @Test
+    void postShortenReturns429WithApiErrorWhenLimitIsExceeded() throws Exception {
+        when(shortenRateLimiterService.isAllowed("127.0.0.1")).thenReturn(false);
+
+        mockMvc.perform(post("/shorten")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"longUrl\":\"https://example.com/path\"}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.error").value("Too Many Requests"))
+                .andExpect(jsonPath("$.message").value("URL creation rate limit exceeded"));
+
+        verifyNoInteractions(urlShortenerService);
     }
 
     @Test
@@ -68,6 +93,22 @@ class ShortenerControllerTest {
         mockMvc.perform(get("/abc"))
                 .andExpect(status().isFound())
                 .andExpect(header().string("Location", "https://example.com/path"));
+
+        verifyNoInteractions(shortenRateLimiterService);
+    }
+
+    @Test
+    void statisticsEndpointIsNotRateLimited() throws Exception {
+        LocalDateTime createdAt = LocalDateTime.now();
+        when(urlShortenerService.getStatistics("abc"))
+                .thenReturn(new UrlStatistics("abc", "https://example.com/path", 0L,
+                        createdAt, createdAt.plusDays(30)));
+
+        mockMvc.perform(get("/stats/abc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.shortCode").value("abc"));
+
+        verifyNoInteractions(shortenRateLimiterService);
     }
 
     @Test

@@ -16,6 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
+import com.farhan.urlshortener.cache.UrlCacheService;
 
 import java.util.Map;
 import java.time.LocalDateTime;
@@ -41,6 +42,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 class UrlShortenerServiceIntegrationTest {
+
+    @Autowired
+    private UrlCacheService urlCacheService;
 
     @Autowired
     private MockMvc mockMvc;
@@ -193,7 +197,7 @@ class UrlShortenerServiceIntegrationTest {
         String longUrl = "https://example.com/persisted";
         String code = urlShortenerService.shorten(longUrl);
 
-        UrlShortenerService restartedService = new UrlShortenerService(urlRepository, base62Encoder);
+        UrlShortenerService restartedService = new UrlShortenerService(urlRepository, base62Encoder, urlCacheService);
 
         assertEquals(longUrl, restartedService.resolve(code));
     }
