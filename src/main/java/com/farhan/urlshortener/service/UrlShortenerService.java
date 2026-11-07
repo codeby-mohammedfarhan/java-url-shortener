@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -59,24 +60,34 @@ public class UrlShortenerService {
     @Transactional
     public String resolve(String code) {
 
-        String cachedUrl = urlCacheService.get(code).orElse(null);
+        Optional<UrlCacheService.CachedUrl> cached = urlCacheService.get(code);
+        if (cached.isPresent()) {
+            UrlCacheService.CachedUrl cachedUrl = cached.get();
+            if (cachedUrl.expiresAt().isAfter(LocalDateTime.now())) {
+                if (urlRepository.incrementClickCountIfActive(code) == 1) {
+                    return cachedUrl.longUrl();
+                }
 
-        Url url = urlRepository.findByShortCodeForUpdate(code)
-                .orElseThrow(() -> new ShortUrlNotFoundException(code));
+                urlCacheService.evict(code);
+                throwNotFoundOrExpired(code);
+            }
 
-        LocalDateTime expiresAt = ensureNotExpired(url);
-
-        url.setClickCount(url.getClickCount() + 1);
-        urlRepository.save(url);
-
-        if (cachedUrl == null) {
-            Duration remainingTtl =
-                    Duration.between(LocalDateTime.now(), expiresAt);
-
-            urlCacheService.put(code, url.getLongUrl(), remainingTtl);
+            // Redis may have retained a stale entry; reload authoritative data.
+            urlCacheService.evict(code);
         }
 
-        return cachedUrl != null ? cachedUrl : url.getLongUrl();
+        Url url = urlRepository.findByShortCode(code)
+                .orElseThrow(() -> new ShortUrlNotFoundException(code));
+        LocalDateTime expiresAt = ensureNotExpired(url);
+        String longUrl = url.getLongUrl();
+
+        if (urlRepository.incrementClickCountIfActive(code) != 1) {
+            urlCacheService.evict(code);
+            throwNotFoundOrExpired(code);
+        }
+
+        urlCacheService.put(code, longUrl, expiresAt);
+        return longUrl;
     }
 
     @Transactional
@@ -122,5 +133,13 @@ public class UrlShortenerService {
         }
 
         return expiresAt;
+    }
+
+    private void throwNotFoundOrExpired(String code) {
+        Url current = urlRepository.findByShortCode(code)
+                .orElseThrow(() -> new ShortUrlNotFoundException(code));
+        ensureNotExpired(current);
+        // The conditional update rejected the row between lookup and update.
+        throw new ShortUrlExpiredException(code);
     }
 }
