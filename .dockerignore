@@ -1,0 +1,10 @@
+.git
+.gitignore
+.dockerignore
+.env
+.env.*
+!.env.example
+target
+.maven-home
+.vscode
+*.log

@@ -1,5 +1,11 @@
 # Maven build output
 /target/
+/.maven-home/
+
+# Local container credentials
+.env
+.env.*
+!.env.example
 
 # Java compiler and runtime artifacts
 *.class
